@@ -1,11 +1,32 @@
-# app.py
 import gradio as gr
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+import logging
+from datetime import datetime
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    pipeline,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling,
+)
+from datasets import load_dataset
 from github import Github
 import os
 import subprocess
+from tqdm import tqdm
 from pathlib import Path
+
+# --- Setup Logging ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(f"./logs/training_{datetime.now().strftime('%Y%m%d')}.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # --- Load Model ---
 model_name = "facebook/incoder-1B"
@@ -18,7 +39,7 @@ codegen_pipeline = pipeline(
     device=0 if torch.cuda.is_available() else -1
 )
 
-# --- Generate Code (Multi-Language) ---
+# --- Generate Code ---
 def generate_code(prompt: str, language: str = "python") -> str:
     if language == "django":
         prompt = (
@@ -40,10 +61,55 @@ def scrape_docs(language: str):
         subprocess.run(["python", "app/scraper/python.py"])
     return f"✅ Scraped {language} documentation!"
 
-# --- Fine-Tune Model ---
+# --- Fine-Tune Model (with Progress Tracking) ---
 def fine_tune(language: str):
-    # Placeholder: Replace with actual fine-tuning logic
-    return f"🔄 Fine-tuning on {language} docs (simulated)."
+    try:
+        # Load dataset
+        dataset = load_dataset("text", data_files=f"./data/{language}/*.md")["train"]
+
+        # Tokenize
+        def tokenize(examples):
+            return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512)
+
+        dataset = dataset.map(tokenize, batched=True)
+
+        # Training arguments
+        training_args = TrainingArguments(
+            output_dir=f"./models/{language}_fine-tuned",
+            per_device_train_batch_size=2,
+            num_train_epochs=1,
+            save_steps=500,
+            logging_dir="./logs",
+            logging_steps=10,
+            report_to="tensorboard",
+        )
+
+        # Trainer
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=dataset,
+            data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
+        )
+
+        # Train with progress
+        logger.info(f"🔄 Starting fine-tuning for {language}...")
+        trainer.train()
+        logger.info(f"💾 Model saved to ./models/{language}_fine-tuned")
+
+        # Get final loss
+        final_loss = trainer.state.log_history[-1]["loss"]
+        return f"✅ Fine-tuned {language} model! Final loss: {final_loss:.4f}"
+
+    except Exception as e:
+        logger.error(f"Training failed: {str(e)}")
+        return f"❌ Training failed: {str(e)}"
+
+# --- Get Training Logs ---
+def get_logs():
+    log_file = sorted(Path("./logs").glob("training_*.log"))[-1]
+    with open(log_file, "r") as f:
+        return f.read()
 
 # --- Commit to GitHub ---
 def commit_to_github(filename: str, code: str):
@@ -73,7 +139,7 @@ with gr.Blocks() as demo:
                     label="Language"
                 )
                 prompt = gr.Textbox(
-                    label="Prompt (e.g., 'Write a function to...')",
+                    label="Prompt",
                     placeholder="Write a Django view to list blog posts..."
                 )
             with gr.Row():
@@ -103,6 +169,7 @@ with gr.Blocks() as demo:
                     value="python",
                     label="Language to Train"
                 )
+            with gr.Row():
                 scrape_btn = gr.Button("Scrape Documentation")
                 fine_tune_btn = gr.Button("Fine-Tune Model")
             with gr.Row():
@@ -119,6 +186,12 @@ with gr.Blocks() as demo:
                 inputs=train_language,
                 outputs=fine_tune_status
             )
+
+        # --- Logs Tab ---
+        with gr.TabItem("Logs"):
+            logs = gr.Textbox(label="Training Logs", interactive=False, lines=20)
+            refresh_btn = gr.Button("Refresh Logs")
+            refresh_btn.click(fn=get_logs, outputs=logs)
 
 # --- Deploy ---
 demo.launch()

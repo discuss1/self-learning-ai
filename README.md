@@ -1,22 +1,20 @@
-# Self-Learning AI (Dedicated Server + Self-Updating)
+---
+title: Self-Learning AI (Multi-Language + Django)
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: "3.36.1"
+app_file: app.py
+pinned: false
+---
 
-## 🚀 Deployment
+# 🤖 Self-Learning AI
 
-### 1. Server Setup (Ubuntu 22.04)
-```bash
-# Install Docker
-sudo apt update
-sudo apt install docker.io docker-compose git
-sudo systemctl enable docker
-sudo systemctl start docker
-
-# Clone the repo
-git clone https://github.com/your-username/self-learning-ai.git
-cd self-learning-ai
-
-# Set GitHub token
-echo "GITHUB_TOKEN=your_github_token" >> .env
-
-# Build and run
-docker-compose up --build -d
+## 📊 Training Progress
+- **Logs Tab**: Real-time training logs (loss, epochs, errors).
+- **TensorBoard**: Visualize metrics (local only; not available on Hugging Face Spaces).
+  Run locally with:
+  ```bash
+  tensorboard --logdir=./logs
 

@@ -1,12 +1,15 @@
 FROM python:3.9-slim
+
 WORKDIR /app
 RUN apt-get update && apt-get install -y git
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Install system dependencies for pyarrow
+RUN apt-get install -y libarrow-dev
 
-# Install Django for validation (optional)
-RUN pip install django
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+CMD ["python", "app.py"]
 
