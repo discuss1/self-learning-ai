@@ -13,3 +13,10 @@ if __name__ == "__main__":
     update_docs()
     fine_tune_models()
 
+# Django learning loop
+def update_docs():
+    subprocess.run(["python", "app/scraper/django.py"], cwd="/app")
+
+def fine_tune_models():
+    subprocess.run(["python", "-c", "from app.main import fine_tune; fine_tune('django')"], cwd="/app")
+

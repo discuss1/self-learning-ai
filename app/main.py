@@ -74,3 +74,30 @@ def update(background_tasks: BackgroundTasks):
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+# Django learning
+def generate_django_code(prompt: str) -> str:
+    """Generate Django-specific code using the fine-tuned model."""
+    model_path = "./models/django_fine-tuned"
+    if os.path.exists(model_path):
+        pipe = pipeline("text-generation", model=model_path, tokenizer=tokenizer, device=0)
+    else:
+        pipe = codegen_pipeline  # Fallback to base model
+
+    # Prepend Django context to the prompt
+    django_prompt = (
+        "You are a Django expert. "
+        "Generate clean, production-ready Django code. "
+        "Follow Django best practices and official documentation. "
+        f"Task: {prompt}"
+    )
+    result = pipe(django_prompt, max_length=500, num_return_sequences=1)
+    return result[0]["generated_text"]
+
+# /generated endpoint
+@app.post("/generate")
+def generate(request: Request, prompt: str = Form(...), framework: str = Form("django")):
+    if framework == "django":
+        return {"code": generate_django_code(prompt)}
+    else:
+        return {"code": generate_code(prompt, "python")}
+
